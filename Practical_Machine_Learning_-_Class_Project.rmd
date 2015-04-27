@@ -1,0 +1,106 @@
+---
+title: "Coursera PML Class Project"
+author: "Donald J Reilly"
+date: "Sunday, April 26, 2015"
+output: html_document
+---
+
+This is the Practical Machine Learning Coursera Class Project.  The following paragraphs are the given assignment.
+
+Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+Data 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+The methodology followed for this assignment is straightforward. 
+
+Load the data:
+
+```{r}
+library(AppliedPredictiveModeling)
+library(rattle)
+library(caret)
+library(ggplot2)
+library(rpart)
+library(rpart.plot)
+
+#setwd("./Coursera R/Practical Machine Learning/Class Project")
+
+# Load training and testing datasets
+pml_training <- read.csv("pml-training.csv")
+pml_testing <-read.csv("pml-testing.csv")
+```
+
+Some data scrubbing was required due to missing values in the data provided.
+
+```{r}
+# Cut out unused columns in the training and testing data frames
+Keeps_training <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2",
+           "new_window", "num_window", "roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt", 
+           "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z",
+           "magnet_belt_x", "magnet_belt_y", "magnet_belt_z","roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", 
+           "gyros_arm_x", "gyros_arm_y", "gyros_arm_z", "accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x", 
+           "magnet_arm_y", "magnet_arm_z", "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell",
+           "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accel_dumbbell_x",
+           "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y",
+           "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm",
+           "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z",
+           "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z", "classe")
+pml_training <- pml_training[, Keeps_training, drop=TRUE]
+
+Keeps_testing <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2",
+                   "new_window", "num_window", "roll_belt", "pitch_belt", "yaw_belt", "total_accel_belt", 
+                   "gyros_belt_x", "gyros_belt_y", "gyros_belt_z", "accel_belt_x", "accel_belt_y", "accel_belt_z",
+                   "magnet_belt_x", "magnet_belt_y", "magnet_belt_z","roll_arm", "pitch_arm", "yaw_arm", "total_accel_arm", 
+                   "gyros_arm_x", "gyros_arm_y", "gyros_arm_z", "accel_arm_x", "accel_arm_y", "accel_arm_z", "magnet_arm_x", 
+                   "magnet_arm_y", "magnet_arm_z", "roll_dumbbell", "pitch_dumbbell", "yaw_dumbbell", "total_accel_dumbbell",
+                   "gyros_dumbbell_x", "gyros_dumbbell_y", "gyros_dumbbell_z", "accel_dumbbell_x",
+                   "accel_dumbbell_y", "accel_dumbbell_z", "magnet_dumbbell_x", "magnet_dumbbell_y",
+                   "magnet_dumbbell_z", "roll_forearm", "pitch_forearm", "yaw_forearm", "total_accel_forearm",
+                   "gyros_forearm_x", "gyros_forearm_y", "gyros_forearm_z", "accel_forearm_x", "accel_forearm_y", "accel_forearm_z",
+                   "magnet_forearm_x", "magnet_forearm_y", "magnet_forearm_z", "problem_id")
+pml_testing <-pml_testing[, Keeps_testing, drop=TRUE]
+```
+
+To make sure that the preliminary analysis on the data did not use the testing dataset and to provide an independent method to validate the model, a separate "validation" data set was created from the training data set provided. This is done as a guard against overfitting the model to the data it is built on, which may mean that you get unpredicted results against the test data set.
+
+
+
+``` {r}
+# Create Validation dataset from training dataset
+inTrain <- createDataPartition(y=pml_training$classe, p=0.95, list=FALSE)
+training <- pml_training[inTrain,]
+validation <- pml_training[-inTrain,]
+dim(training); dim(validation); dim(pml_testing)
+```
+
+Now, it is time to fit the model to the data and collect preliminary results, including estimated error, accuracy and other metrics. The Random Forests method was chosen for this particular data set and challenge because Random Forest is one of the most accurate and successful methods that we have. One caveat with Random Forest is that it can be resource-intensive and time-intensive. In this case, it was an appropriate choice and also does cross-validation of the model automatically. The model provided exceptional accuracy at 92% and a calculated, expected OOB error rate of 0.1%. 
+
+
+```{r}
+set.seed(5151)
+modelFit <- train(classe ~ ., data=validation, method="rf", prox=TRUE) 
+modelFit
+print(modelFit$finalModel)
+plot(modelFit$finalModel)
+```
+
+And then to run the model against the test data set to provide the predicted outcomes that have not yet been predicted.
+
+```{r}
+pred <- predict(modelFit, pml_testing)
+# pml_testing$predRight <- pred==pml_testing$classe
+table(pred,pml_testing$classe)
+```
